@@ -13,6 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/tickets', ticketRoutes);
+app.use(express.static(require('path').join(__dirname, '../frontend')));
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
