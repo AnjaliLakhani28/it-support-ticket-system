@@ -16,6 +16,11 @@
   .badge-open { background: #2563eb; }
   .badge-inprogress { background: #d97706; }
   .badge-resolved { background: #15803d; }
+  .badge-low { background: #64748b; }
+  .badge-medium { background: #0891b2; }
+  .badge-high { background: #ea580c; }
+  .badge-critical { background: #b91c1c; }
+  .badge-overdue { background: #7f1d1d; }
 </style>
 </head>
 <body>
@@ -36,6 +41,12 @@
     <option value="Account">Account</option>
   </select>
   <div class="error" id="categoryError"></div>
+  <select id="priority">
+    <option value="Low">Low priority (resolve within 72h)</option>
+    <option value="Medium" selected>Medium priority (resolve within 24h)</option>
+    <option value="High">High priority (resolve within 8h)</option>
+    <option value="Critical">Critical priority (resolve within 4h)</option>
+  </select>
   <input type="text" id="userId" placeholder="Your User ID">
   <div class="error" id="userIdError"></div>
   <button type="submit">Submit Ticket</button>
@@ -54,6 +65,15 @@
 <textarea id="resolutionNotes" placeholder="Resolution notes"></textarea>
 <div class="error" id="resolutionError"></div>
 <button onclick="resolveTicket()">Resolve Ticket</button>
+<select id="newPriority">
+  <option value="Low">Low</option>
+  <option value="Medium">Medium</option>
+  <option value="High">High</option>
+  <option value="Critical">Critical</option>
+</select>
+<button onclick="changePriority()">Change Priority (recalculates SLA)</button>
+<button onclick="loadOverdue()">Show Overdue Tickets</button>
+<div id="overdueList"></div>
 <p id="agentMsg"></p>
 
 <script>
@@ -62,6 +82,19 @@ const API = "/api/tickets";
 function statusBadge(status) {
   const cls = status === "Open" ? "badge-open" : status === "In Progress" ? "badge-inprogress" : "badge-resolved";
   return `<span class="badge ${cls}">${status}</span>`;
+}
+
+function priorityBadge(priority) {
+  const p = priority || 'Medium';
+  return `<span class="badge badge-${p.toLowerCase()}">${p}</span>`;
+}
+
+function slaInfo(t) {
+  if (!t.dueDate) return '';
+  const due = new Date(t.dueDate).toLocaleString();
+  return t.isOverdue
+    ? `<span class="badge badge-overdue">OVERDUE</span> Due: ${due}<br>`
+    : `SLA due: ${due}<br>`;
 }
 
 function clearErrors() {
@@ -77,6 +110,7 @@ document.getElementById('ticketForm').addEventListener('submit', async (e) => {
   const title = document.getElementById('title').value.trim();
   const description = document.getElementById('description').value.trim();
   const category = document.getElementById('category').value;
+  const priority = document.getElementById('priority').value;
   const userId = document.getElementById('userId').value.trim();
   const msg = document.getElementById('submitMsg');
   msg.textContent = '';
@@ -92,7 +126,7 @@ document.getElementById('ticketForm').addEventListener('submit', async (e) => {
     const res = await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description, category, userId })
+      body: JSON.stringify({ title, description, category, userId, priority })
     });
     const data = await res.json();
     if (res.ok) {
@@ -130,7 +164,8 @@ async function loadTickets() {
     listDiv.innerHTML = tickets.map(t => `
       <div class="ticket">
         <strong>${t.title}</strong> (ID: ${t._id})<br>
-        Category: ${t.category} | ${statusBadge(t.status)}<br>
+        Category: ${t.category} | ${statusBadge(t.status)} ${priorityBadge(t.priority)}<br>
+        ${slaInfo(t)}
         Description: ${t.description}<br>
         ${t.assignedAgentId ? `Assigned Agent: ${t.assignedAgentId}<br>` : ''}
         ${t.resolutionNotes ? `Resolution: ${t.resolutionNotes}<br>` : ''}
@@ -197,6 +232,43 @@ async function resolveTicket() {
   } catch (err) {
     msg.textContent = 'Network error: ' + err.message;
     msg.className = 'error';
+  }
+}
+// FR-N1: agent changes priority -> backend recalculates SLA due date
+async function changePriority() {
+  const ticketId = document.getElementById('ticketId').value.trim();
+  const agentId = document.getElementById('agentId').value.trim();
+  const priority = document.getElementById('newPriority').value;
+  const msg = document.getElementById('agentMsg');
+  if (!ticketId) { msg.textContent = 'Ticket ID is required.'; msg.className = 'error'; return; }
+  try {
+    const res = await fetch(`${API}/${ticketId}/priority`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priority, agentId })
+    });
+    const data = await res.json();
+    msg.innerHTML = res.ok
+      ? `Priority set to ${priorityBadge(data.ticket.priority)} — ${data.sla}. New due date: ${new Date(data.ticket.dueDate).toLocaleString()}${data.escalate ? ' <strong>(Escalated to team lead)</strong>' : ''}`
+      : data.message;
+    msg.className = res.ok ? 'success' : 'error';
+  } catch (err) {
+    msg.textContent = 'Network error: ' + err.message;
+    msg.className = 'error';
+  }
+}
+
+// FR-N1: list all unresolved tickets past their SLA due date
+async function loadOverdue() {
+  const div = document.getElementById('overdueList');
+  try {
+    const res = await fetch(`${API}/overdue`);
+    const tickets = await res.json();
+    div.innerHTML = tickets.length
+      ? tickets.map(t => `<div class="ticket"><strong>${t.title}</strong> (ID: ${t._id})<br>${statusBadge(t.status)} ${priorityBadge(t.priority)}<br>${slaInfo(t)}</div>`).join('')
+      : '<div class="empty-state">No overdue tickets. All SLAs are being met.</div>';
+  } catch (err) {
+    div.innerHTML = `<p class="error">Error: ${err.message}</p>`;
   }
 }
 </script>
