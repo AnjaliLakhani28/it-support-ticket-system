@@ -25,6 +25,11 @@
   .timeline li { border-left: 3px solid #2563eb; padding: 4px 10px; margin: 6px 0; font-size: 0.9em; }
   .timeline li.comment { border-left-color: #15803d; }
   .muted { color: #666; font-size: 0.85em; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .stat { flex: 1 1 110px; border: 1px solid #ccc; border-radius: 6px; padding: 8px; text-align: center; }
+  .stat b { display: block; font-size: 1.5em; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+  .filters select { width: auto; flex: 1 1 140px; }
 </style>
 </head>
 <body>
@@ -70,6 +75,17 @@
 <button onclick="loadActivity()">View Ticket Timeline</button>
 <p id="commentMsg"></p>
 <div id="activityView"></div>
+
+<h2>Agent Dashboard</h2>
+<div class="stats" id="statsBar"></div>
+<div class="filters">
+  <select id="fStatus"><option value="">All statuses</option><option>Open</option><option>In Progress</option><option>Resolved</option></select>
+  <select id="fTeam"><option value="">All teams</option><option>Hardware</option><option>Software</option><option>Network</option><option>Account</option></select>
+  <select id="fPriority"><option value="">All priorities</option><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select>
+  <select id="fOverdue"><option value="">Any SLA state</option><option value="true">Overdue only</option></select>
+</div>
+<button onclick="loadDashboard()">Apply Filters</button>
+<div id="dashboardList"></div>
 
 <h2>Agent Actions</h2>
 <input type="text" id="ticketId" placeholder="Ticket ID">
@@ -293,6 +309,44 @@ async function loadActivity() {
     view.innerHTML = `<p class="error">Error: ${err.message}</p>`;
   }
 }
+
+// FR-N3: agent dashboard - summary counts + filtered list
+async function loadStats() {
+  const bar = document.getElementById('statsBar');
+  try {
+    const res = await fetch('/api/agent/stats');
+    const s = await res.json();
+    const box = (label, n) => `<div class="stat"><b>${n || 0}</b>${label}</div>`;
+    bar.innerHTML = box('Total', s.total) + box('Open', s.byStatus.Open) +
+      box('In Progress', s.byStatus['In Progress']) + box('Resolved', s.byStatus.Resolved) +
+      box('Overdue', s.overdue);
+  } catch (err) {
+    bar.innerHTML = `<p class="error">Could not load stats: ${err.message}</p>`;
+  }
+}
+
+async function loadDashboard() {
+  const params = new URLSearchParams();
+  [['status','fStatus'],['team','fTeam'],['priority','fPriority'],['overdue','fOverdue']].forEach(([k, id]) => {
+    const v = document.getElementById(id).value;
+    if (v) params.append(k, v);
+  });
+  const div = document.getElementById('dashboardList');
+  try {
+    const res = await fetch('/api/agent/tickets?' + params.toString());
+    const data = await res.json();
+    if (!res.ok) { div.innerHTML = `<p class="error">${data.message}</p>`; return; }
+    div.innerHTML = `<p class="muted">${data.count} ticket(s) found</p>` + (data.tickets.map(t => `
+      <div class="ticket"><strong>${t.title}</strong> (ID: ${t._id})<br>
+      Team: ${t.team} | ${statusBadge(t.status)} ${priorityBadge(t.priority)}<br>
+      ${slaInfo(t)}${t.assignedAgentId ? `Agent: ${t.assignedAgentId}` : 'Unassigned'}</div>`).join('') ||
+      '<div class="empty-state">No tickets match these filters.</div>');
+    loadStats();
+  } catch (err) {
+    div.innerHTML = `<p class="error">Error: ${err.message}</p>`;
+  }
+}
+loadStats();
 
 // FR-N1: agent changes priority -> backend recalculates SLA due date
 async function changePriority() {
