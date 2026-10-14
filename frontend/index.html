@@ -21,6 +21,10 @@
   .badge-high { background: #ea580c; }
   .badge-critical { background: #b91c1c; }
   .badge-overdue { background: #7f1d1d; }
+  .timeline { list-style: none; padding-left: 0; }
+  .timeline li { border-left: 3px solid #2563eb; padding: 4px 10px; margin: 6px 0; font-size: 0.9em; }
+  .timeline li.comment { border-left-color: #15803d; }
+  .muted { color: #666; font-size: 0.85em; }
 </style>
 </head>
 <body>
@@ -57,6 +61,15 @@
 <input type="text" id="viewUserId" placeholder="Enter your User ID">
 <button onclick="loadTickets()">Load Tickets</button>
 <div id="ticketList"></div>
+
+<h2>Comments &amp; Activity</h2>
+<input type="text" id="commentTicketId" placeholder="Ticket ID">
+<input type="text" id="commentAuthor" placeholder="Your User ID or Agent ID">
+<textarea id="commentText" placeholder="Write a comment (max 1000 characters)" maxlength="1000"></textarea>
+<button onclick="addComment()">Add Comment</button>
+<button onclick="loadActivity()">View Ticket Timeline</button>
+<p id="commentMsg"></p>
+<div id="activityView"></div>
 
 <h2>Agent Actions</h2>
 <input type="text" id="ticketId" placeholder="Ticket ID">
@@ -234,6 +247,53 @@ async function resolveTicket() {
     msg.className = 'error';
   }
 }
+// FR-N2: add a comment to a ticket
+async function addComment() {
+  const id = document.getElementById('commentTicketId').value.trim();
+  const authorId = document.getElementById('commentAuthor').value.trim();
+  const text = document.getElementById('commentText').value.trim();
+  const msg = document.getElementById('commentMsg');
+  if (!id || !authorId || !text) {
+    msg.textContent = 'Ticket ID, your ID and comment text are all required.';
+    msg.className = 'error';
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/${id}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, authorId })
+    });
+    const data = await res.json();
+    msg.textContent = res.ok ? 'Comment added.' : data.message;
+    msg.className = res.ok ? 'success' : 'error';
+    if (res.ok) { document.getElementById('commentText').value = ''; loadActivity(); }
+  } catch (err) {
+    msg.textContent = 'Network error: ' + err.message;
+    msg.className = 'error';
+  }
+}
+
+// FR-N2: show comments and automatic activity log as one timeline
+async function loadActivity() {
+  const id = document.getElementById('commentTicketId').value.trim();
+  const view = document.getElementById('activityView');
+  if (!id) { view.innerHTML = '<p class="error">Enter a Ticket ID.</p>'; return; }
+  try {
+    const res = await fetch(`${API}/${id}/activity`);
+    const data = await res.json();
+    if (!res.ok) { view.innerHTML = `<p class="error">${data.message}</p>`; return; }
+    const items = [
+      ...data.activityLog.map(a => ({ when: a.timestamp, html: `<li><strong>${a.action}</strong> by ${a.actorId} ${a.details ? '— ' + a.details : ''}<br><span class="muted">${new Date(a.timestamp).toLocaleString()}</span></li>` })),
+      ...data.comments.map(c => ({ when: c.timestamp, html: `<li class="comment">💬 <strong>${c.authorId}</strong>: ${c.text}<br><span class="muted">${new Date(c.timestamp).toLocaleString()}</span></li>` }))
+    ].sort((a, b) => new Date(a.when) - new Date(b.when));
+    view.innerHTML = `<div class="ticket"><strong>${data.title}</strong> ${statusBadge(data.status)}
+      <ul class="timeline">${items.map(i => i.html).join('') || '<li>No activity yet.</li>'}</ul></div>`;
+  } catch (err) {
+    view.innerHTML = `<p class="error">Error: ${err.message}</p>`;
+  }
+}
+
 // FR-N1: agent changes priority -> backend recalculates SLA due date
 async function changePriority() {
   const ticketId = document.getElementById('ticketId').value.trim();
