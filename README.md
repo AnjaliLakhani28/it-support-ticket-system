@@ -10,7 +10,9 @@ A full-stack IT help-desk application (IFN636 Assessment 2) built with Node.js, 
 - **NFRs** Security headers, rate limiting, input validation, XSS protection, health check
 
 ## Running locally
-Run `node server.js` from the backend folder after adding a `.env` file (see Deployment).
+1. `cd backend && npm install`
+2. Create `backend/.env` containing `MONGO_URI=<your Atlas URI>` and `PORT=5001`
+3. `npm start` and open http://localhost:5001
 
 ## Testing
 ```bash
