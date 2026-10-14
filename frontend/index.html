@@ -4,15 +4,44 @@
 <meta charset="UTF-8">
 <title>IT Support Ticket System</title>
 <style>
-  body { font-family: Arial, sans-serif; max-width: 700px; margin: 30px auto; padding: 0 15px; }
-  h1, h2 { color: #222; }
-  input, select, textarea, button { display: block; margin: 8px 0; padding: 8px; width: 100%; box-sizing: border-box; }
-  button { background: #2563eb; color: white; border: none; cursor: pointer; width: auto; padding: 8px 16px; }
-  .ticket { border: 1px solid #ccc; padding: 12px; margin: 10px 0; border-radius: 6px; }
+  /* UI refresh: soft background, header band, card sections */
+  :root {
+    --bg: #eef2f7; --card: #ffffff; --ink: #1e293b; --muted: #64748b;
+    --line: #dbe2ea; --brand: #1d4ed8; --brand-dark: #1e3a8a; --focus: #93c5fd;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: var(--ink);
+    background: var(--bg) linear-gradient(180deg, #dbe7f6 0, var(--bg) 260px) no-repeat;
+  }
+  .app-header {
+    background: linear-gradient(120deg, var(--brand-dark), var(--brand));
+    color: #fff; padding: 22px 16px 26px; box-shadow: 0 2px 10px rgba(15,23,42,.18);
+  }
+  .app-header .inner, main, footer { max-width: 860px; margin: 0 auto; }
+  .app-header h1 { margin: 0; font-size: 1.7em; letter-spacing: .2px; }
+  .app-header p { margin: 4px 0 0; opacity: .85; font-size: .95em; }
+  main { padding: 18px 16px 8px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px 20px; margin: 0 0 18px; box-shadow: 0 1px 3px rgba(15,23,42,.06);
+  }
+  h2 { margin: 0 0 10px; font-size: 1.2em; color: var(--brand-dark);
+       padding-bottom: 8px; border-bottom: 2px solid #e8eef6; }
+  input, select, textarea, button { display: block; margin: 8px 0; padding: 9px 11px; width: 100%; font: inherit; }
+  input, select, textarea { border: 1px solid #cbd5e1; border-radius: 8px; background: #fbfdff; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--focus); }
+  button {
+    background: var(--brand); color: #fff; border: none; border-radius: 8px; cursor: pointer;
+    width: auto; padding: 9px 16px; font-weight: 600; display: inline-block; margin-right: 6px;
+  }
+  button:hover { background: var(--brand-dark); }
+  .ticket { border: 1px solid var(--line); border-left: 4px solid var(--brand); padding: 12px 14px;
+            margin: 10px 0; border-radius: 8px; background: #fbfdff; line-height: 1.55; }
   .error { color: #b91c1c; font-size: 0.9em; margin: 2px 0 8px; }
   .success { color: #15803d; }
-  .empty-state { color: #666; font-style: italic; padding: 12px; border: 1px dashed #ccc; border-radius: 6px; }
-  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.85em; font-weight: bold; color: white; }
+  .empty-state { color: var(--muted); font-style: italic; padding: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.82em; font-weight: bold; color: white; }
   .badge-open { background: #2563eb; }
   .badge-inprogress { background: #d97706; }
   .badge-resolved { background: #15803d; }
@@ -22,20 +51,32 @@
   .badge-critical { background: #b91c1c; }
   .badge-overdue { background: #7f1d1d; }
   .timeline { list-style: none; padding-left: 0; }
-  .timeline li { border-left: 3px solid #2563eb; padding: 4px 10px; margin: 6px 0; font-size: 0.9em; }
-  .timeline li.comment { border-left-color: #15803d; }
-  .muted { color: #666; font-size: 0.85em; }
-  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-  .stat { flex: 1 1 110px; border: 1px solid #ccc; border-radius: 6px; padding: 8px; text-align: center; }
-  .stat b { display: block; font-size: 1.5em; }
+  .timeline li { border-left: 3px solid #2563eb; padding: 4px 10px; margin: 6px 0; font-size: 0.92em; }
+  .timeline li.comment { border-left-color: #15803d; background: #f0fdf4; border-radius: 0 6px 6px 0; }
+  .muted { color: var(--muted); font-size: 0.85em; }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 14px; }
+  .stat { flex: 1 1 110px; border: 1px solid var(--line); border-top: 4px solid var(--brand);
+          border-radius: 10px; padding: 10px; text-align: center; background: #fff; color: var(--muted); }
+  .stat:nth-child(2) { border-top-color: #2563eb; }
+  .stat:nth-child(3) { border-top-color: #d97706; }
+  .stat:nth-child(4) { border-top-color: #15803d; }
+  .stat:nth-child(5) { border-top-color: #b91c1c; }
+  .stat b { display: block; font-size: 1.6em; color: var(--ink); }
   .filters { display: flex; flex-wrap: wrap; gap: 8px; }
-  .filters select { width: auto; flex: 1 1 140px; }
+  .filters select { width: auto; flex: 1 1 160px; }
+  footer { padding: 4px 16px 24px; }
+  @media (max-width: 600px) { .card { padding: 14px; } .app-header h1 { font-size: 1.35em; } }
 </style>
 </head>
 <body>
 
-<h1>IT Support Ticket System</h1>
+<header class="app-header"><div class="inner">
+  <h1>IT Support Ticket System</h1>
+  <p>Submit, track and resolve IT issues with SLA-based priorities</p>
+</div></header>
+<main>
 
+<section class="card">
 <h2>Submit a Ticket</h2>
 <form id="ticketForm" novalidate>
   <input type="text" id="title" placeholder="Title">
@@ -61,12 +102,16 @@
   <button type="submit">Submit Ticket</button>
 </form>
 <p id="submitMsg"></p>
+</section>
 
+<section class="card">
 <h2>View My Tickets</h2>
 <input type="text" id="viewUserId" placeholder="Enter your User ID">
 <button onclick="loadTickets()">Load Tickets</button>
 <div id="ticketList"></div>
+</section>
 
+<section class="card">
 <h2>Comments &amp; Activity</h2>
 <input type="text" id="commentTicketId" placeholder="Ticket ID">
 <input type="text" id="commentAuthor" placeholder="Your User ID or Agent ID">
@@ -75,7 +120,9 @@
 <button onclick="loadActivity()">View Ticket Timeline</button>
 <p id="commentMsg"></p>
 <div id="activityView"></div>
+</section>
 
+<section class="card">
 <h2>Agent Dashboard</h2>
 <div class="stats" id="statsBar"></div>
 <div class="filters">
@@ -86,7 +133,9 @@
 </div>
 <button onclick="loadDashboard()">Apply Filters</button>
 <div id="dashboardList"></div>
+</section>
 
+<section class="card">
 <h2>Agent Actions</h2>
 <input type="text" id="ticketId" placeholder="Ticket ID">
 <input type="text" id="agentId" placeholder="Agent ID">
@@ -104,6 +153,9 @@
 <button onclick="loadOverdue()">Show Overdue Tickets</button>
 <div id="overdueList"></div>
 <p id="agentMsg"></p>
+
+</section>
+</main>
 
 <script>
 const API = "/api/tickets";
