@@ -22,4 +22,5 @@ npm test
 ```
 
 ## Deployment
-Not documented yet.
+- Every push to `main` runs the GitHub Actions workflow (`.github/workflows/ci.yml`): tests run first, then the self-hosted runner on EC2 restarts the app with pm2 (`ecosystem.config.js`).
+- The app runs on two EC2 instances behind an AWS Application Load Balancer; the target group health check uses `GET /api/health` on port 5001.
