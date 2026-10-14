@@ -1,21 +1,13 @@
+// server.js - entry point: connects to MongoDB and starts listening.
+// Run with `node server.js` locally, or via pm2 (see ecosystem.config.js) on EC2.
 global.crypto = require('crypto').webcrypto;
 require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
+const app = require('./app');
 const connectDB = require('./config/db');
-const ticketRoutes = require('./routes/ticketRoutes');
-
-const app = express();
-
-connectDB();
-
-app.use(cors());
-app.use(express.json());
-
-app.use('/api/tickets', ticketRoutes);
-app.use(express.static(require('path').join(__dirname, '../frontend')));
 
 const PORT = process.env.PORT || 5001;
+
+connectDB();
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
