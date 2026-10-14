@@ -113,6 +113,11 @@ function statusBadge(status) {
   return `<span class="badge ${cls}">${status}</span>`;
 }
 
+// NFR-N1: escape user-supplied text before inserting it into the page (prevents stored XSS)
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
 function priorityBadge(priority) {
   const p = priority || 'Medium';
   return `<span class="badge badge-${p.toLowerCase()}">${p}</span>`;
@@ -163,7 +168,7 @@ document.getElementById('ticketForm').addEventListener('submit', async (e) => {
       msg.className = 'success';
       e.target.reset();
     } else {
-      msg.textContent = data.message || 'Error creating ticket';
+      msg.textContent = data.errors ? data.errors.join('; ') : (data.message || 'Error creating ticket');
       msg.className = 'error';
     }
   } catch (err) {
@@ -192,12 +197,12 @@ async function loadTickets() {
     }
     listDiv.innerHTML = tickets.map(t => `
       <div class="ticket">
-        <strong>${t.title}</strong> (ID: ${t._id})<br>
-        Category: ${t.category} | ${statusBadge(t.status)} ${priorityBadge(t.priority)}<br>
+        <strong>${esc(t.title)}</strong> (ID: ${esc(t._id)})<br>
+        Category: ${esc(t.category)} | ${statusBadge(t.status)} ${priorityBadge(t.priority)}<br>
         ${slaInfo(t)}
-        Description: ${t.description}<br>
-        ${t.assignedAgentId ? `Assigned Agent: ${t.assignedAgentId}<br>` : ''}
-        ${t.resolutionNotes ? `Resolution: ${t.resolutionNotes}<br>` : ''}
+        Description: ${esc(t.description)}<br>
+        ${t.assignedAgentId ? `Assigned Agent: ${esc(t.assignedAgentId)}<br>` : ''}
+        ${t.resolutionNotes ? `Resolution: ${esc(t.resolutionNotes)}<br>` : ''}
       </div>
     `).join('');
   } catch (err) {
@@ -223,7 +228,7 @@ async function assignTicket() {
       body: JSON.stringify({ agentId })
     });
     const data = await res.json();
-    msg.innerHTML = res.ok ? `Ticket assigned. Status: ${statusBadge(data.status)}` : data.message;
+    msg.innerHTML = res.ok ? `Ticket assigned. Status: ${statusBadge(data.status)}` : esc(data.message);
     msg.className = res.ok ? 'success' : 'error';
   } catch (err) {
     msg.textContent = 'Network error: ' + err.message;
@@ -256,7 +261,7 @@ async function resolveTicket() {
       body: JSON.stringify({ agentId, resolutionNotes })
     });
     const data = await res.json();
-    msg.innerHTML = res.ok ? `Ticket resolved. Status: ${statusBadge(data.status)}` : data.message;
+    msg.innerHTML = res.ok ? `Ticket resolved. Status: ${statusBadge(data.status)}` : esc(data.message);
     msg.className = res.ok ? 'success' : 'error';
   } catch (err) {
     msg.textContent = 'Network error: ' + err.message;
@@ -298,12 +303,12 @@ async function loadActivity() {
   try {
     const res = await fetch(`${API}/${id}/activity`);
     const data = await res.json();
-    if (!res.ok) { view.innerHTML = `<p class="error">${data.message}</p>`; return; }
+    if (!res.ok) { view.innerHTML = `<p class="error">${esc(data.message)}</p>`; return; }
     const items = [
-      ...data.activityLog.map(a => ({ when: a.timestamp, html: `<li><strong>${a.action}</strong> by ${a.actorId} ${a.details ? '— ' + a.details : ''}<br><span class="muted">${new Date(a.timestamp).toLocaleString()}</span></li>` })),
-      ...data.comments.map(c => ({ when: c.timestamp, html: `<li class="comment">💬 <strong>${c.authorId}</strong>: ${c.text}<br><span class="muted">${new Date(c.timestamp).toLocaleString()}</span></li>` }))
+      ...data.activityLog.map(a => ({ when: a.timestamp, html: `<li><strong>${esc(a.action)}</strong> by ${esc(a.actorId)} ${a.details ? '— ' + esc(a.details) : ''}<br><span class="muted">${new Date(a.timestamp).toLocaleString()}</span></li>` })),
+      ...data.comments.map(c => ({ when: c.timestamp, html: `<li class="comment">💬 <strong>${esc(c.authorId)}</strong>: ${esc(c.text)}<br><span class="muted">${new Date(c.timestamp).toLocaleString()}</span></li>` }))
     ].sort((a, b) => new Date(a.when) - new Date(b.when));
-    view.innerHTML = `<div class="ticket"><strong>${data.title}</strong> ${statusBadge(data.status)}
+    view.innerHTML = `<div class="ticket"><strong>${esc(data.title)}</strong> ${statusBadge(data.status)}
       <ul class="timeline">${items.map(i => i.html).join('') || '<li>No activity yet.</li>'}</ul></div>`;
   } catch (err) {
     view.innerHTML = `<p class="error">Error: ${err.message}</p>`;
@@ -335,11 +340,11 @@ async function loadDashboard() {
   try {
     const res = await fetch('/api/agent/tickets?' + params.toString());
     const data = await res.json();
-    if (!res.ok) { div.innerHTML = `<p class="error">${data.message}</p>`; return; }
+    if (!res.ok) { div.innerHTML = `<p class="error">${esc(data.message)}</p>`; return; }
     div.innerHTML = `<p class="muted">${data.count} ticket(s) found</p>` + (data.tickets.map(t => `
-      <div class="ticket"><strong>${t.title}</strong> (ID: ${t._id})<br>
-      Team: ${t.team} | ${statusBadge(t.status)} ${priorityBadge(t.priority)}<br>
-      ${slaInfo(t)}${t.assignedAgentId ? `Agent: ${t.assignedAgentId}` : 'Unassigned'}</div>`).join('') ||
+      <div class="ticket"><strong>${esc(t.title)}</strong> (ID: ${esc(t._id)})<br>
+      Team: ${esc(t.team)} | ${statusBadge(t.status)} ${priorityBadge(t.priority)}<br>
+      ${slaInfo(t)}${t.assignedAgentId ? `Agent: ${esc(t.assignedAgentId)}` : 'Unassigned'}</div>`).join('') ||
       '<div class="empty-state">No tickets match these filters.</div>');
     loadStats();
   } catch (err) {
@@ -364,7 +369,7 @@ async function changePriority() {
     const data = await res.json();
     msg.innerHTML = res.ok
       ? `Priority set to ${priorityBadge(data.ticket.priority)} — ${data.sla}. New due date: ${new Date(data.ticket.dueDate).toLocaleString()}${data.escalate ? ' <strong>(Escalated to team lead)</strong>' : ''}`
-      : data.message;
+      : esc(data.message);
     msg.className = res.ok ? 'success' : 'error';
   } catch (err) {
     msg.textContent = 'Network error: ' + err.message;
@@ -379,13 +384,18 @@ async function loadOverdue() {
     const res = await fetch(`${API}/overdue`);
     const tickets = await res.json();
     div.innerHTML = tickets.length
-      ? tickets.map(t => `<div class="ticket"><strong>${t.title}</strong> (ID: ${t._id})<br>${statusBadge(t.status)} ${priorityBadge(t.priority)}<br>${slaInfo(t)}</div>`).join('')
+      ? tickets.map(t => `<div class="ticket"><strong>${esc(t.title)}</strong> (ID: ${esc(t._id)})<br>${statusBadge(t.status)} ${priorityBadge(t.priority)}<br>${slaInfo(t)}</div>`).join('')
       : '<div class="empty-state">No overdue tickets. All SLAs are being met.</div>';
   } catch (err) {
     div.innerHTML = `<p class="error">Error: ${err.message}</p>`;
   }
 }
+// NFR-N4: show which EC2 instance served this page (load balancer evidence)
+fetch('/api/health').then(r => r.json()).then(h => {
+  document.getElementById('servedBy').textContent = `Served by instance: ${h.instance} | DB: ${h.database}`;
+}).catch(() => {});
 </script>
 
+<footer><p class="muted" id="servedBy"></p></footer>
 </body>
 </html>
