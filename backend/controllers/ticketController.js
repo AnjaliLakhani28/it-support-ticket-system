@@ -163,7 +163,7 @@ const addComment = async (req, res) => {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
-    ticket.comments.push({ text: String(text).trim(), authorId });
+    ticket.comments.push({ text: String(text).trim(), authorId, timestamp: new Date() });
     eventBus.notify({ ticket, action: TicketEvents.COMMENT_ADDED, actorId: authorId, details: 'Comment added' });
     await ticket.save();
 
