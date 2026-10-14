@@ -1,0 +1,65 @@
+# CI/CD pipeline for the IT Support Ticket System
+#  - CI : every push / pull request to main installs dependencies and runs
+#         the Mocha/Chai/Sinon test suite on a GitHub-hosted runner.
+#  - CD : only after tests pass on a push to main, the self-hosted runner on
+#         EC2 pulls the code, writes the production .env and restarts pm2.
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Run Backend Tests
+        working-directory: ./backend
+        run: npm test
+
+  deploy:
+    name: Deploy to EC2
+    needs: test                      # CD only runs if every test passed
+    if: github.event_name == 'push'  # never deploy from a pull request
+    runs-on: self-hosted             # GitHub Actions runner installed on EC2
+    environment: MONGO_URI
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Production Dependencies
+        working-directory: ./backend
+        run: npm ci --omit=dev
+
+      - name: Create .env from GitHub Secret
+        working-directory: ./backend
+        run: |
+          touch .env
+          echo "${{ secrets.PROD }}" > .env
+
+      - name: Restart Application with pm2
+        run: |
+          pm2 delete ists-backend || true
+          pm2 start ecosystem.config.js
+          pm2 save
+          pm2 status
