@@ -12,7 +12,9 @@ const ticketSchema = new mongoose.Schema({
   // FR-N1: priority drives the SLA due date (see patterns/sla)
   priority: { type: String, enum: ["Low", "Medium", "High", "Critical"], default: "Medium" },
   dueDate: { type: Date },
-  comments: [{ text: String, authorId: String, timestamp: { type: Date, default: Date.now } }]
+  comments: [{ text: String, authorId: String, timestamp: { type: Date, default: Date.now } }],
+  // FR-N2: automatic history written by ActivityLogObserver (patterns/observer)
+  activityLog: [{ action: String, actorId: String, details: String, timestamp: { type: Date, default: Date.now } }]
 }, { timestamps: true, toJSON: { virtuals: true } });
 
 // FR-N1: computed flag so the UI can highlight tickets that missed their SLA
